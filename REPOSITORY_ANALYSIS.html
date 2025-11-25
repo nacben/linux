@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linux Kernel Repository - Technical Deep Dive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #FF6B35;
+            --secondary: #004E89;
+            --accent: #1B6CA8;
+            --bg-light: #F8F9FA;
+            --bg-dark: #1e1e1e;
+            --text-light: #333333;
+            --text-dark: #E8E8E8;
+            --border: #E0E0E0;
+            --code-bg: #2d2d30;
+            --code-text: #D4D4D4;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: var(--bg-dark);
+                color: var(--text-dark);
+            }
+
+            .sidebar {
+                background-color: #252526;
+                border-right: 1px solid #3E3E42;
+            }
+
+            .content {
+                background-color: var(--bg-dark);
+            }
+
+            h1, h2, h3, h4, h5, h6 {
+                color: #ffffff;
+            }
+
+            table {
+                background-color: #2d2d30;
+                border-color: #3E3E42;
+            }
+
+            table th {
+                background-color: #1e1e1e;
+            }
+
+            table tr:hover {
+                background-color: #3E3E42;
+            }
+
+            .code-block {
+                background-color: var(--code-bg);
+                border: 1px solid #3E3E42;
+            }
+
+            .stat-card {
+                background-color: #2d2d30;
+                border: 1px solid #3E3E42;
+            }
+
+            .toc-link:hover {
+                background-color: #3E3E42;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: var(--text-light);
+            background-color: var(--bg-light);
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 300px;
+            background-color: white;
+            border-right: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar h3 {
+            color: var(--secondary);
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .toc-link {
+            display: block;
+            padding: 8px 12px;
+            margin: 3px 0;
+            text-decoration: none;
+            color: var(--text-light);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .toc-link:hover {
+            background-color: #f0f0f0;
+            border-left-color: var(--primary);
+            transform: translateX(4px);
+        }
+
+        .toc-link.level-2 {
+            padding-left: 24px;
+            font-size: 0.85rem;
+        }
+
+        .content {
+            flex: 1;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--accent) 100%);
+            color: white;
+            padding: 60px 40px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        header h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.95;
+            margin-bottom: 20px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 6px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .stat-card strong {
+            display: block;
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+
+        .stat-card span {
+            display: block;
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        h2 {
+            color: var(--secondary);
+            font-size: 2rem;
+            margin-top: 50px;
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid var(--primary);
+        }
+
+        h3 {
+            color: var(--accent);
+            font-size: 1.5rem;
+            margin-top: 35px;
+            margin-bottom: 15px;
+        }
+
+        h4 {
+            color: var(--text-light);
+            font-size: 1.1rem;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 15px;
+            line-height: 1.8;
+        }
+
+        ul, ol {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        strong {
+            color: var(--secondary);
+            font-weight: 600;
+        }
+
+        .code-block {
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border-left: 4px solid var(--primary);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        pre {
+            margin: 0;
+        }
+
+        code {
+            font-family: 'Courier New', monospace;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        table th {
+            background-color: var(--secondary);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        table tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .horizontal-line {
+            border: none;
+            height: 2px;
+            background: linear-gradient(to right, var(--border) 0%, var(--primary) 50%, var(--border) 100%);
+            margin: 40px 0;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(255, 107, 53, 0.1) 0%, rgba(27, 108, 168, 0.1) 100%);
+            border-left: 4px solid var(--primary);
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .feature-card h4 {
+            color: var(--secondary);
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        footer {
+            background-color: var(--secondary);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            margin-top: 60px;
+            font-size: 0.9rem;
+        }
+
+        .back-to-top {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--primary);
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .back-to-top:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: static;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+
+            .content {
+                padding: 30px 20px;
+            }
+
+            header {
+                padding: 40px 20px;
+            }
+
+            header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            table {
+                font-size: 0.9rem;
+            }
+
+            table th, table td {
+                padding: 8px;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .comparison-note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            font-size: 0.95rem;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .comparison-note {
+                background-color: #664d03;
+                color: #fff;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Navigation</h3>
+            <a href="#overview" class="toc-link">Overview</a>
+
+            <h3>Part 1: Memory</h3>
+            <a href="#buddy-allocator" class="toc-link level-2">Buddy Allocator</a>
+            <a href="#virtual-memory" class="toc-link level-2">Virtual Memory</a>
+            <a href="#zones" class="toc-link level-2">Memory Zones</a>
+            <a href="#slub" class="toc-link level-2">SLUB Allocator</a>
+            <a href="#page-cache" class="toc-link level-2">Page Cache</a>
+            <a href="#debugging" class="toc-link level-2">Memory Debugging</a>
+            <a href="#reclaim" class="toc-link level-2">Memory Reclaim</a>
+
+            <h3>Part 2: Drivers</h3>
+            <a href="#device-model" class="toc-link level-2">Device Model</a>
+            <a href="#platform-drivers" class="toc-link level-2">Platform Drivers</a>
+            <a href="#pci-drivers" class="toc-link level-2">PCI Drivers</a>
+            <a href="#interrupts" class="toc-link level-2">Interrupts</a>
+            <a href="#dma" class="toc-link level-2">DMA</a>
+            <a href="#power-mgmt" class="toc-link level-2">Power Management</a>
+            <a href="#devres" class="toc-link level-2">Managed Resources</a>
+
+            <h3>Part 3: Files</h3>
+            <a href="#key-files" class="toc-link level-2">Critical Files</a>
+        </aside>
+
+        <main class="content">
+            <header id="overview">
+                <h1>Linux Kernel Repository</h1>
+                <p>Technical Deep Dive - Version 6.18-rc7 "Baby Opossum Posse"</p>
+                <div class="stats">
+                    <div class="stat-card">
+                        <strong>Architectures</strong>
+                        <span>23+</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>Directories</strong>
+                        <span>28</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>Drivers</strong>
+                        <span>143+</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>Languages</strong>
+                        <span>C, ASM, Rust</span>
+                    </div>
+                </div>
+            </header>
+
+            <p>This is the Linux kernel source repository, one of the largest and most complex open-source projects. The repository contains architecture-independent and architecture-specific code for a Unix-like operating system kernel supporting 23+ processor architectures.</p>
+
+            <h2>Repository Overview</h2>
+            <table>
+                <tr>
+                    <th>Property</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td><strong>Version</strong></td>
+                    <td>Linux 6.18-rc7</td>
+                </tr>
+                <tr>
+                    <td><strong>Architectures</strong></td>
+                    <td>x86, ARM, ARM64, MIPS, PowerPC, RISC-V, s390, and more</td>
+                </tr>
+                <tr>
+                    <td><strong>Top-level Directories</strong></td>
+                    <td>28 major directories</td>
+                </tr>
+                <tr>
+                    <td><strong>Driver Categories</strong></td>
+                    <td>143+ subdirectories</td>
+                </tr>
+                <tr>
+                    <td><strong>Build System</strong></td>
+                    <td>GNU Make-based with Kconfig</td>
+                </tr>
+                <tr>
+                    <td><strong>Primary Language</strong></td>
+                    <td>C (with Assembly and Rust support)</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h2 id="part1">Part 1: Memory Management Deep Dive</h2>
+
+            <div class="highlight-box">
+                <strong>Overview:</strong> Memory management is a core subsystem that handles physical page allocation, virtual memory, page caching, memory debugging, and memory reclaim. The kernel implements a sophisticated multi-layer allocation system from low-level page allocator up to high-level slab caches.
+            </div>
+
+            <h3 id="buddy-allocator">Buddy Allocator - Page-Level Allocation</h3>
+            <p><strong>Purpose:</strong> Manages physical memory allocation at the page level (4KB granularity on most systems).</p>
+            <p><strong>File Location:</strong> <code>/mm/page_alloc.c</code> (7,628 lines)</p>
+
+            <h4>Buddy Allocator Algorithm</h4>
+            <p>The buddy allocator maintains free lists organized by power-of-2 page orders:</p>
+            <ul>
+                <li><strong>Order 0:</strong> 1 page (4KB)</li>
+                <li><strong>Order 1:</strong> 2 pages (8KB)</li>
+                <li><strong>Order 2:</strong> 4 pages (16KB)</li>
+                <li><strong>Order 10:</strong> 1024 pages (4MB)</li>
+            </ul>
+
+            <div class="code-block"><pre>struct free_area {
+    struct list_head free_list[MIGRATE_TYPES];
+    unsigned long nr_free;
+};
+
+struct zone {
+    struct free_area free_area[NR_PAGE_ORDERS];
+    spinlock_t lock;
+    struct per_cpu_pages __percpu *per_cpu_pageset;
+};</pre></div>
+
+            <h4>Key Features</h4>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>Buddy Merging</h4>
+                    <p>When freeing pages, adjacent free buddies are merged into higher orders, reducing fragmentation.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Per-CPU Caching</h4>
+                    <p>Per-CPU slab structures reduce lock contention by ~70% on high-core systems.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>GFP Flags</h4>
+                    <p>Flexible allocation flags: GFP_KERNEL, GFP_ATOMIC, GFP_HIGHUSER, GFP_NOWAIT, etc.</p>
+                </div>
+            </div>
+
+            <h3 id="virtual-memory">Virtual Memory Management</h3>
+            <p><strong>Purpose:</strong> Maps logical memory addresses to physical pages, implements page faults, and manages page tables.</p>
+            <p><strong>File Location:</strong> <code>/mm/memory.c</code> (7,326 lines)</p>
+
+            <h4>Page Table Hierarchy (x86-64)</h4>
+            <table>
+                <tr>
+                    <th>Level</th>
+                    <th>Name</th>
+                    <th>Size</th>
+                    <th>Entries</th>
+                </tr>
+                <tr>
+                    <td>1</td>
+                    <td>PGD (Page Global Directory)</td>
+                    <td>4KB</td>
+                    <td>512</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>PUD (Page Upper Directory)</td>
+                    <td>4KB</td>
+                    <td>512</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>PMD (Page Middle Directory)</td>
+                    <td>4KB</td>
+                    <td>512</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>PTE (Page Table Entry)</td>
+                    <td>4KB</td>
+                    <td>512</td>
+                </tr>
+            </table>
+
+            <h4>Page Fault Handlers</h4>
+            <table>
+                <tr>
+                    <th>Function</th>
+                    <th>Location</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><code>__handle_mm_fault()</code></td>
+                    <td>memory.c:6245</td>
+                    <td>Main page fault dispatcher</td>
+                </tr>
+                <tr>
+                    <td><code>do_swap_page()</code></td>
+                    <td>memory.c:4582</td>
+                    <td>Swap page faults</td>
+                </tr>
+                <tr>
+                    <td><code>wp_page_copy()</code></td>
+                    <td>memory.c:3658</td>
+                    <td>Copy-on-write page faults</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h3 id="zones">Memory Zones and Watermarks</h3>
+            <p><strong>Purpose:</strong> Partition physical memory into zones for DMA, normal, and high memory allocation needs.</p>
+
+            <h4>Zone Types</h4>
+            <table>
+                <tr>
+                    <th>Zone</th>
+                    <th>Use Case</th>
+                    <th>Physical Address</th>
+                </tr>
+                <tr>
+                    <td><strong>ZONE_DMA</strong></td>
+                    <td>ISA DMA devices</td>
+                    <td>0-16MB</td>
+                </tr>
+                <tr>
+                    <td><strong>ZONE_DMA32</strong></td>
+                    <td>PCI 32-bit devices</td>
+                    <td>16MB-4GB</td>
+                </tr>
+                <tr>
+                    <td><strong>ZONE_NORMAL</strong></td>
+                    <td>General kernel</td>
+                    <td>&gt; 4GB (varies)</td>
+                </tr>
+                <tr>
+                    <td><strong>ZONE_HIGHMEM</strong></td>
+                    <td>Beyond direct map</td>
+                    <td>&gt; 896MB (32-bit)</td>
+                </tr>
+            </table>
+
+            <h4>Watermark Levels</h4>
+            <p>Watermarks prevent memory exhaustion by maintaining minimum free memory:</p>
+            <ul>
+                <li><strong>WMARK_MIN:</strong> Critical minimum (e.g., 16,896 pages / 67.5 MB)</li>
+                <li><strong>WMARK_LOW:</strong> Start reclaim trigger (e.g., 21,120 pages / 84 MB)</li>
+                <li><strong>WMARK_HIGH:</strong> Stop reclaim threshold (e.g., 25,344 pages / 101 MB)</li>
+            </ul>
+
+            <hr class="horizontal-line">
+
+            <h3 id="slub">SLUB Allocator - Object-Level Allocation</h3>
+            <p><strong>Purpose:</strong> Allocate small kernel objects (kmalloc) efficiently with minimal overhead.</p>
+            <p><strong>File Location:</strong> <code>/mm/slub.c</code> (10,084 lines)</p>
+
+            <div class="highlight-box">
+                <strong>Why SLUB?</strong> Raw page allocation (4KB) wastes memory for small objects. SLUB packs multiple objects per page into "slabs" for efficient memory usage and CPU affinity.
+            </div>
+
+            <h4>Kmalloc Allocation Sizes</h4>
+            <p>Power-of-2 or aligned sizes: 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096 bytes</p>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>Memory Efficiency</h4>
+                    <p>Multiple objects per page reduce wasted space</p>
+                </div>
+                <div class="feature-card">
+                    <h4>CPU Affinity</h4>
+                    <p>Objects allocate on same CPU for cache locality</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Per-CPU Caching</h4>
+                    <p>Lock-free fast path allocation</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Debugging Integration</h4>
+                    <p>Works with KASAN, KFENCE, KMSAN</p>
+                </div>
+            </div>
+
+            <hr class="horizontal-line">
+
+            <h3 id="page-cache">Page Cache - File I/O Layer</h3>
+            <p><strong>Purpose:</strong> Cache file data in RAM for fast access, coordinate filesystem and memory subsystems.</p>
+            <p><strong>File Location:</strong> <code>/mm/filemap.c</code> (4,689 lines)</p>
+
+            <h4>Page Cache Architecture</h4>
+            <div class="code-block"><pre>File
+  ↓
+inode (filesystem inode)
+  ↓
+address_space (contains page cache)
+  ↓
+Radix tree/XArray (page index → page*)
+  ↓
+Pages in RAM (4KB each)</pre></div>
+
+            <h4>Page Cache State Flags</h4>
+            <table>
+                <tr>
+                    <th>Flag</th>
+                    <th>Meaning</th>
+                </tr>
+                <tr>
+                    <td><code>PG_locked</code></td>
+                    <td>Page locked (I/O in progress)</td>
+                </tr>
+                <tr>
+                    <td><code>PG_dirty</code></td>
+                    <td>Page contains unsaved changes</td>
+                </tr>
+                <tr>
+                    <td><code>PG_writeback</code></td>
+                    <td>Page being written to disk</td>
+                </tr>
+                <tr>
+                    <td><code>PG_uptodate</code></td>
+                    <td>Page contents are valid</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h3 id="debugging">Memory Debugging Tools</h3>
+
+            <h4>KASAN (Kernel Address Sanitizer)</h4>
+            <p><strong>Purpose:</strong> Detect out-of-bounds memory access and use-after-free bugs at runtime.</p>
+            <p><strong>File Location:</strong> <code>/mm/kasan/</code> (17 files, ~220KB)</p>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>Shadow Memory</h4>
+                    <p>1 byte shadow per 8 bytes of real memory tracks accessibility</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Instrumentation</h4>
+                    <p>Compiler-added checks on every memory access</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Quarantine</h4>
+                    <p>Delay freed object reuse to detect use-after-free</p>
+                </div>
+            </div>
+
+            <h4>KFENCE (Kernel Fence)</h4>
+            <p><strong>Purpose:</strong> Detect heap buffer overflows and use-after-free with zero false positives.</p>
+            <p><strong>File Location:</strong> <code>/mm/kfence/</code> (6 files, ~82KB)</p>
+
+            <div class="comparison-note">
+                <strong>Key Advantage:</strong> Physical guard pages around each allocation eliminate false positives. Probabilistic sampling (1 in 100 allocations) keeps overhead minimal even on production systems.
+            </div>
+
+            <h4>KMSAN (Kernel Memory Sanitizer)</h4>
+            <p><strong>Purpose:</strong> Detect uninitialized memory usage (reading uninitialized variables).</p>
+            <p><strong>File Location:</strong> <code>/mm/kmsan/</code> (9 files, ~87KB)</p>
+
+            <p>Tracks initialization state with 1 bit per byte, compiler instrumentation propagates uninitialized state through operations, and origin tracking provides stack traces of where uninitialized values came from.</p>
+
+            <hr class="horizontal-line">
+
+            <h3 id="reclaim">Memory Reclaim and Page Eviction</h3>
+            <p><strong>Purpose:</strong> Free memory when low, prioritizing least-used pages.</p>
+            <p><strong>File Location:</strong> <code>/mm/vmscan.c</code> (7,919 lines)</p>
+
+            <h4>kswapd Background Daemon</h4>
+            <p>The kernel uses <strong>kswapd</strong> (kernel swap daemon) to reclaim pages in background when memory pressure is detected:</p>
+            <ol>
+                <li>Wake kswapd when free pages &lt; WMARK_LOW</li>
+                <li>Scan LRU lists and evict pages</li>
+                <li>Write inactive/anonymous pages to swap device</li>
+                <li>Stop when free pages &gt; WMARK_HIGH</li>
+            </ol>
+
+            <h4>LRU Lists (Least Recently Used)</h4>
+            <table>
+                <tr>
+                    <th>List</th>
+                    <th>Contains</th>
+                    <th>Reclaim Priority</th>
+                </tr>
+                <tr>
+                    <td>LRU_INACTIVE_ANON</td>
+                    <td>Unused user memory</td>
+                    <td>High (easy to swap)</td>
+                </tr>
+                <tr>
+                    <td>LRU_ACTIVE_ANON</td>
+                    <td>Used user memory</td>
+                    <td>Lower (in-use)</td>
+                </tr>
+                <tr>
+                    <td>LRU_INACTIVE_FILE</td>
+                    <td>Unused file cache</td>
+                    <td>High (can discard)</td>
+                </tr>
+                <tr>
+                    <td>LRU_ACTIVE_FILE</td>
+                    <td>Used file cache</td>
+                    <td>Lower (needed soon)</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h2 id="part2">Part 2: Driver Architecture Deep Dive</h2>
+
+            <div class="highlight-box">
+                <strong>Key Architectural Principle:</strong> Separation between what hardware does (device) and how to control it (driver). All devices and drivers use standardized structures and registration mechanisms.
+            </div>
+
+            <h3 id="device-model">Unified Device Model</h3>
+            <p><strong>File Locations:</strong></p>
+            <ul>
+                <li><code>/drivers/base/core.c</code> (2000+ lines) - Device registration and lifecycle</li>
+                <li><code>/drivers/base/driver.c</code> - Driver binding logic</li>
+                <li><code>/drivers/base/bus.c</code> - Bus type management</li>
+                <li><code>/drivers/base/dd.c</code> - Device-driver matching and probe/remove</li>
+            </ul>
+
+            <h4>Device Registration Flow</h4>
+            <ol>
+                <li>Hardware discovered (PCI enumeration, USB hotplug, device tree)</li>
+                <li>Device structure created</li>
+                <li><code>device_register()</code> called</li>
+                <li>Device added to bus's device list</li>
+                <li>For each driver: <code>bus->match(device, driver)</code></li>
+                <li>If match: <code>driver_probe_device()</code> → <code>probe()</code></li>
+                <li>Device ready or deferred if dependencies unmet</li>
+            </ol>
+
+            <h4>Core Structures</h4>
+            <table>
+                <tr>
+                    <th>Structure</th>
+                    <th>Key Field</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><code>struct device</code></td>
+                    <td><code>device_driver *driver</code></td>
+                    <td>Bound driver reference</td>
+                </tr>
+                <tr>
+                    <td><code>struct device_driver</code></td>
+                    <td><code>int (*probe)()</code></td>
+                    <td>Hardware initialization callback</td>
+                </tr>
+                <tr>
+                    <td><code>struct bus_type</code></td>
+                    <td><code>int (*match)()</code></td>
+                    <td>Device-driver matching algorithm</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h3 id="platform-drivers">Platform Device Drivers</h3>
+            <p><strong>Purpose:</strong> Support "pseudo" devices that aren't on standard buses (legacy devices, device tree, ACPI).</p>
+
+            <h4>Platform Device Structure</h4>
+            <div class="code-block"><pre>struct platform_device {
+    const char *name;                  // For driver matching
+    int id;                            // Device ID
+    struct device dev;
+    struct resource *resource;         // I/O, IRQ, DMA
+};
+
+struct resource {
+    resource_size_t start;
+    resource_size_t end;
+    unsigned long flags;               // MEM, IO, IRQ, DMA
+};</pre></div>
+
+            <h4>Key APIs</h4>
+            <table>
+                <tr>
+                    <th>Function</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><code>platform_get_resource()</code></td>
+                    <td>Retrieve I/O or IRQ resource</td>
+                </tr>
+                <tr>
+                    <td><code>devm_ioremap_resource()</code></td>
+                    <td>Map I/O memory (auto-freed)</td>
+                </tr>
+                <tr>
+                    <td><code>devm_request_irq()</code></td>
+                    <td>Request IRQ (auto-freed)</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h3 id="pci-drivers">PCI Drivers</h3>
+            <p><strong>Purpose:</strong> Support devices on the PCI/PCIe bus.</p>
+            <p><strong>File Locations:</strong> <code>/include/linux/pci.h</code> (3000+ lines), <code>/drivers/pci/</code></p>
+
+            <h4>PCI Device Discovery</h4>
+            <ol>
+                <li>PCI bus enumeration discovers vendor/device IDs</li>
+                <li>Kernel searches registered drivers' id_tables</li>
+                <li>Match found: <code>probe()</code> called with matched device</li>
+                <li>Driver maps BARs, configures DMA, requests interrupts</li>
+                <li>Device ready to use</li>
+            </ol>
+
+            <h4>PCI Resources (BARs)</h4>
+            <table>
+                <tr>
+                    <th>Resource Type</th>
+                    <th>Purpose</th>
+                    <th>Mapped Via</th>
+                </tr>
+                <tr>
+                    <td>IORESOURCE_MEM</td>
+                    <td>Memory-mapped I/O</td>
+                    <td><code>pci_iomap()</code></td>
+                </tr>
+                <tr>
+                    <td>IORESOURCE_IO</td>
+                    <td>Port-mapped I/O</td>
+                    <td>Legacy (x86)</td>
+                </tr>
+                <tr>
+                    <td>IORESOURCE_IRQ</td>
+                    <td>Interrupt line</td>
+                    <td><code>pci_alloc_irq_vectors()</code></td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h3 id="interrupts">Interrupt Handling in Drivers</h3>
+            <p><strong>File Locations:</strong> <code>/include/linux/interrupt.h</code>, <code>/kernel/irq/manage.c</code></p>
+
+            <h4>IRQ Request Structure</h4>
+            <div class="code-block"><pre>struct irqaction {
+    irq_handler_t handler;          // Hard interrupt handler
+    irq_handler_t thread_fn;        // Threaded handler
+    void *dev_id;                   // Context/cookie
+    unsigned int flags;             // IRQF_* flags
+};</pre></div>
+
+            <h4>IRQ Handler Types</h4>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>Hard Handler</h4>
+                    <p>Atomic context. Must be fast. Disable IRQ on return.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Threaded Handler</h4>
+                    <p>Process context. Can sleep, allocate, acquire locks.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Tasklet</h4>
+                    <p>Software IRQ. Atomic. Single per-tasklet serialization.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Workqueue</h4>
+                    <p>Process context. Can sleep. Per-workqueue serialization.</p>
+                </div>
+            </div>
+
+            <h4>IRQ Handler Flags</h4>
+            <table>
+                <tr>
+                    <th>Flag</th>
+                    <th>Meaning</th>
+                </tr>
+                <tr>
+                    <td><code>IRQF_SHARED</code></td>
+                    <td>Allow sharing this IRQ with other devices</td>
+                </tr>
+                <tr>
+                    <td><code>IRQF_TRIGGER_RISING</code></td>
+                    <td>Rising edge trigger</td>
+                </tr>
+                <tr>
+                    <td><code>IRQF_ONESHOT</code></td>
+                    <td>Keep disabled until threaded handler finishes</td>
+                </tr>
+                <tr>
+                    <td><code>IRQF_NO_SUSPEND</code></td>
+                    <td>Don't disable during system suspend</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h3 id="dma">DMA in Drivers</h3>
+            <p><strong>File Locations:</strong> <code>/include/linux/dma-mapping.h</code>, <code>/kernel/dma/</code></p>
+
+            <h4>DMA Allocation Types</h4>
+
+            <h5>Coherent DMA (Cache-Coherent)</h5>
+            <p>Device and CPU see same data without explicit sync. Best for control structures and descriptors.</p>
+            <div class="code-block"><pre>dma_addr_t dma_handle;
+void *vaddr = dma_alloc_coherent(dev, size, &dma_handle, GFP_KERNEL);
+// Automatic cache coherency - no manual sync needed</pre></div>
+
+            <h5>Streaming DMA (Requires Explicit Sync)</h5>
+            <p>Data may not be immediately visible without cache flush. Use for bulk data transfers.</p>
+            <div class="code-block"><pre>dma_addr_t dma_handle = dma_map_single(dev, vaddr, size, DMA_TO_DEVICE);
+// ... device operates on dma_handle
+dma_unmap_single(dev, dma_handle, size, DMA_TO_DEVICE);</pre></div>
+
+            <h5>Scatter-Gather DMA</h5>
+            <p>Map multiple buffers with a single operation for better performance.</p>
+
+            <h4>DMA Attributes</h4>
+            <table>
+                <tr>
+                    <th>Attribute</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><code>DMA_ATTR_WRITE_COMBINE</code></td>
+                    <td>Write combining for faster writes</td>
+                </tr>
+                <tr>
+                    <td><code>DMA_ATTR_FORCE_CONTIGUOUS</code></td>
+                    <td>Allocate physically contiguous memory</td>
+                </tr>
+                <tr>
+                    <td><code>DMA_ATTR_SKIP_CPU_SYNC</code></td>
+                    <td>Skip cache sync (if you know it's safe)</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h3 id="power-mgmt">Power Management in Drivers</h3>
+            <p><strong>File Locations:</strong> <code>/include/linux/pm.h</code>, <code>/drivers/base/power/</code></p>
+
+            <h4>Power State Callbacks</h4>
+            <table>
+                <tr>
+                    <th>Callback</th>
+                    <th>When Called</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><code>suspend()</code></td>
+                    <td>Before system sleep</td>
+                    <td>Save state, stop I/O</td>
+                </tr>
+                <tr>
+                    <td><code>resume()</code></td>
+                    <td>After system wakes</td>
+                    <td>Restore state, restart I/O</td>
+                </tr>
+                <tr>
+                    <td><code>runtime_suspend()</code></td>
+                    <td>When device idle</td>
+                    <td>Power down device</td>
+                </tr>
+                <tr>
+                    <td><code>runtime_resume()</code></td>
+                    <td>On device access</td>
+                    <td>Power up device</td>
+                </tr>
+            </table>
+
+            <h4>Runtime PM (Dynamic Power Control)</h4>
+            <p>Automatically power down idle devices and wake them on access:</p>
+            <div class="code-block"><pre>// In probe:
+pm_runtime_enable(dev);
+pm_runtime_set_autosuspend_delay(dev, 1000);  // 1 second idle
+
+// Before using device:
+pm_runtime_get_sync(dev);  // Wake up
+// ... use device
+pm_runtime_put_autosuspend(dev);  // OK to sleep soon</pre></div>
+
+            <hr class="horizontal-line">
+
+            <h3 id="devres">Managed Resources (devres) Framework</h3>
+            <p><strong>Purpose:</strong> Automatic resource cleanup when device is removed.</p>
+            <p><strong>File Location:</strong> <code>/drivers/base/devres.c</code></p>
+
+            <div class="highlight-box">
+                <strong>Key Benefit:</strong> Eliminates resource leak bugs. On probe() failure or device removal, all managed resources are automatically freed in reverse allocation order (LIFO).
+            </div>
+
+            <h4>Common Managed Allocations</h4>
+            <table>
+                <tr>
+                    <th>API</th>
+                    <th>Auto-Frees</th>
+                </tr>
+                <tr>
+                    <td><code>devm_kmalloc()</code></td>
+                    <td>Memory</td>
+                </tr>
+                <tr>
+                    <td><code>devm_ioremap_resource()</code></td>
+                    <td>I/O mapping</td>
+                </tr>
+                <tr>
+                    <td><code>devm_request_irq()</code></td>
+                    <td>Interrupt</td>
+                </tr>
+                <tr>
+                    <td><code>dmam_alloc_coherent()</code></td>
+                    <td>DMA memory</td>
+                </tr>
+                <tr>
+                    <td><code>devm_clk_get()</code></td>
+                    <td>Clock reference</td>
+                </tr>
+                <tr>
+                    <td><code>devm_gpiod_get()</code></td>
+                    <td>GPIO descriptor</td>
+                </tr>
+            </table>
+
+            <h4>Cleanup Guarantee</h4>
+            <p>On probe() failure or remove():</p>
+            <ol>
+                <li>Walk list of managed resources in LIFO order</li>
+                <li>Call cleanup function for each resource</li>
+                <li>Free metadata</li>
+            </ol>
+
+            <p>This ensures resources are freed in reverse allocation order, preventing dependency issues and resource leaks.</p>
+
+            <hr class="horizontal-line">
+
+            <h2 id="key-files">Part 3: Critical Files Summary</h2>
+
+            <h3>Memory Management Files</h3>
+            <table>
+                <tr>
+                    <th>File</th>
+                    <th>Lines</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><code>mm/page_alloc.c</code></td>
+                    <td>7,628</td>
+                    <td>Buddy allocator, page allocation</td>
+                </tr>
+                <tr>
+                    <td><code>mm/slub.c</code></td>
+                    <td>10,084</td>
+                    <td>SLUB slab allocator for kmalloc</td>
+                </tr>
+                <tr>
+                    <td><code>mm/vmscan.c</code></td>
+                    <td>7,919</td>
+                    <td>Page reclaim, LRU lists, kswapd</td>
+                </tr>
+                <tr>
+                    <td><code>mm/memory.c</code></td>
+                    <td>7,326</td>
+                    <td>Page faults, virtual memory, page tables</td>
+                </tr>
+                <tr>
+                    <td><code>mm/filemap.c</code></td>
+                    <td>4,689</td>
+                    <td>Page cache, file I/O</td>
+                </tr>
+                <tr>
+                    <td><code>mm/migrate.c</code></td>
+                    <td>2,500+</td>
+                    <td>Page migration for hotplug/NUMA</td>
+                </tr>
+                <tr>
+                    <td><code>mm/kasan/</code></td>
+                    <td>~220KB</td>
+                    <td>Kernel AddressSanitizer</td>
+                </tr>
+                <tr>
+                    <td><code>mm/kfence/</code></td>
+                    <td>~82KB</td>
+                    <td>Kernel Fence allocator</td>
+                </tr>
+                <tr>
+                    <td><code>mm/kmsan/</code></td>
+                    <td>~87KB</td>
+                    <td>Kernel Memory Sanitizer</td>
+                </tr>
+            </table>
+
+            <h3>Device Model & Driver Files</h3>
+            <table>
+                <tr>
+                    <th>File</th>
+                    <th>Lines</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><code>drivers/base/core.c</code></td>
+                    <td>2000+</td>
+                    <td>Device registration and lifecycle</td>
+                </tr>
+                <tr>
+                    <td><code>drivers/base/driver.c</code></td>
+                    <td>1000+</td>
+                    <td>Driver binding and matching</td>
+                </tr>
+                <tr>
+                    <td><code>drivers/base/bus.c</code></td>
+                    <td>1500+</td>
+                    <td>Bus type management</td>
+                </tr>
+                <tr>
+                    <td><code>drivers/base/dd.c</code></td>
+                    <td>1500+</td>
+                    <td>Probe/remove sequencing, deferred probe</td>
+                </tr>
+                <tr>
+                    <td><code>drivers/base/devres.c</code></td>
+                    <td>600+</td>
+                    <td>Managed resource framework</td>
+                </tr>
+                <tr>
+                    <td><code>drivers/base/platform.c</code></td>
+                    <td>1000+</td>
+                    <td>Platform device framework</td>
+                </tr>
+                <tr>
+                    <td><code>drivers/base/power/main.c</code></td>
+                    <td>1000+</td>
+                    <td>System suspend/resume</td>
+                </tr>
+                <tr>
+                    <td><code>drivers/base/power/runtime.c</code></td>
+                    <td>1000+</td>
+                    <td>Runtime PM</td>
+                </tr>
+            </table>
+
+            <h3>Interrupt & Module Files</h3>
+            <table>
+                <tr>
+                    <th>File</th>
+                    <th>Lines</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><code>kernel/irq/manage.c</code></td>
+                    <td>2000+</td>
+                    <td>IRQ request/free, handler setup</td>
+                </tr>
+                <tr>
+                    <td><code>kernel/irq/handle.c</code></td>
+                    <td>500+</td>
+                    <td>IRQ dispatcher</td>
+                </tr>
+                <tr>
+                    <td><code>kernel/irq/chip.c</code></td>
+                    <td>1000+</td>
+                    <td>IRQ chip operations</td>
+                </tr>
+                <tr>
+                    <td><code>kernel/module/main.c</code></td>
+                    <td>2500+</td>
+                    <td>Module loading, lifecycle</td>
+                </tr>
+                <tr>
+                    <td><code>kernel/module/kallsyms.c</code></td>
+                    <td>1000+</td>
+                    <td>Symbol resolution</td>
+                </tr>
+            </table>
+
+            <hr class="horizontal-line">
+
+            <h2>Conclusion</h2>
+            <div class="highlight-box">
+                <p>The Linux kernel's memory management and driver subsystems are highly sophisticated:</p>
+
+                <h4 style="margin-top: 20px;">Memory Management:</h4>
+                <ul>
+                    <li><strong>Multi-level allocation:</strong> Pages → slabs → kmalloc</li>
+                    <li><strong>Intelligent reclaim:</strong> LRU-based eviction, kswapd background daemon</li>
+                    <li><strong>Comprehensive debugging:</strong> KASAN, KFENCE, KMSAN</li>
+                    <li><strong>Hardware abstraction:</strong> Page tables, zones, NUMA support</li>
+                </ul>
+
+                <h4>Driver Architecture:</h4>
+                <ul>
+                    <li><strong>Unified device model:</strong> Standardized structures and registration</li>
+                    <li><strong>Flexible bus support:</strong> Platform, PCI, USB, I2C, SPI</li>
+                    <li><strong>Automatic cleanup:</strong> Managed resources (devres)</li>
+                    <li><strong>Deferred probing:</strong> Transparent device dependency ordering</li>
+                </ul>
+
+                <p style="margin-top: 20px;">Together, these subsystems enable the kernel to efficiently manage hardware, memory, and software in a reliable, debuggable, and extensible manner across 23+ processor architectures and thousands of devices.</p>
+            </div>
+        </main>
+    </div>
+
+    <footer>
+        <p><strong>Linux Kernel Repository Analysis - Technical Deep Dive</strong></p>
+        <p>Version 6.18-rc7 "Baby Opossum Posse"</p>
+        <p style="margin-top: 10px; opacity: 0.8;">Generated for comprehensive kernel architecture understanding</p>
+    </footer>
+
+    <a href="#overview" class="back-to-top" id="backToTop">↑</a>
+
+    <script>
+        // Back to top button
+        const backToTop = document.getElementById('backToTop');
+
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 300) {
+                backToTop.classList.add('visible');
+            } else {
+                backToTop.classList.remove('visible');
+            }
+        });
+
+        backToTop.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+
+        // Smooth scroll for TOC links
+        document.querySelectorAll('.toc-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const target = document.querySelector(link.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
